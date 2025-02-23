@@ -392,7 +392,7 @@ function handleFileUpload() {
                 });
             });
         }
-    }).catch(error => {
+    }).catch(error) => {
         console.error("Error handling file:", error);
         alert(`Error handling file: ${error.message}`);
     });
