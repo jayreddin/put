@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Application</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+          integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <div class="header-left">
+                <button id="theme-toggle" class="icon-button" title="Toggle Theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <span id="model-name" class="model-label"></span>
+            </div>
+            <div class="header-center">
+                <select id="model-select-header" class="model-selector" title="Select AI Model">
+                    <option value="gpt-4o-mini">GPT-4o-mini</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="o3-mini">o3-mini</option>
+                    <option value="o1-mini">o1-mini</option>
+                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                    <option value="deepseek-chat">Deepseek Chat</option>
+                    <option value="deepseek-reasoner">Deepseek Reasoner</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo">Meta Llama 8B</option>
+                    <option value="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo">Meta Llama 70B</option>
+                    <option value="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo">Meta Llama 405B</option>
+                    <option value="mistral-large-latest">Mistral Large</option>
+                    <option value="pixtral-large-latest">Pixtral Large</option>
+                    <option value="codestral-latest">Codestral</option>
+                    <option value="google/gemma-2-27b-it">Gemma 2-27B</option>
+                    <option value="grok-beta">Grok Beta</option>
+                </select>
+            </div>
+            <div class="header-right">
+                <button id="new-chat-button" class="icon-button" title="New Chat">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button id="history-button" class="icon-button" title="History">
+                    <i class="fas fa-history"></i>
+                </button>
+                <button id="settings-button" class="icon-button" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-area">
+                <div class="messages-container">
+                    <!-- Messages will be dynamically inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Fixed input container -->
+        <div class="input-container">
+            <div class="input-area">
+                <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+                <button id="send-button" class="icon-button" title="Send">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div id="active-reasoning" class="active-reasoning hidden">
+                Using reasoning model: <span id="active-reasoning-name"></span>
+            </div>
+            <div class="tools-bar">
+                <button class="tool-button" id="image-button" title="Upload Image for Analysis">
+                    <i class="fas fa-image"></i>
+                </button>
+                <button class="tool-button" id="file-button" title="Upload Document">
+                    <i class="fas fa-file-alt"></i>
+                </button>
+                <button class="tool-button" id="web-search-button" title="Web Search">
+                    <i class="fas fa-globe"></i>
+                </button>
+                <button class="tool-button" id="deep-thinking-button" title="Deep Thinking">
+                    <i class="fas fa-brain"></i>
+                </button>
+                <button class="tool-button" id="tools-button" title="Tools">
+                    <i class="fas fa-tools"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal">×</span>
+                <h2>Settings</h2>
+                <div class="setting-item">
+                    <label for="system-prompt">Custom Model Prompt:</label>
+                    <textarea id="system-prompt" placeholder="Enter your custom prompt..."></textarea>
+                </div>
+                <div class="model-selection">
+                    <button id="custom-model-button" class="wide-button">Use Selected Model</button>
+                    <div id="model-selection-card" class="card">
+                        <h3>Select AI Model Provider:</h3>
+                        <button class="model-button" data-model="anthropic">Anthropic</button>
+                        <button class="model-button" data-model="deepseek">DeepSeek</button>
+                        <button class="model-button" data-model="togetherai">TogetherAI</button>
+                        <button class="model-button" data-model="xai">xAI</button>
+                    </div>
+                </div>
+                <div id="custom-model-card" class="card">
+                    <div class="setting-item">
+                        <label for="custom-provider">Provider:</label>
+                        <input type="text" id="custom-provider" placeholder="Enter provider...">
+                    </div>
+                    <div class="setting-item">
+                        <label for="custom-api-key">Custom API Key:</label>
+                        <input type="password" id="custom-api-key" placeholder="Enter API key...">
+                    </div>
+                    <div class="setting-item">
+                        <label for="custom-endpoint-url">Custom Endpoint URL:</label>
+                        <input type="text" id="custom-endpoint-url" placeholder="Enter endpoint URL...">
+                    </div>
+                    <div class="setting-item">
+                        <label for="custom-model-name">Custom Model Name:</label>
+                        <input type="text" id="custom-model-name" placeholder="Enter model name...">
+                    </div>
+                    <div class="setting-item">
+                        <label for="saved-model-name">Saved Model Name:</label>
+                        <input type="text" id="saved-model-name" placeholder="Enter saved model name...">
+                    </div>
+                    <button id="apply-custom-model-button" class="wide-button">Apply</button>
+                </div>
+                <button id="save-settings-button" class="wide-button">Save Settings</button>
+            </div>
+        </div>
+
+        <!-- Tools Modal -->
+        <div id="tools-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal" id="close-tools-modal">×</span>
+                <h2>AI Tools</h2>
+                <div class="tool-list">
+                    <div class="tool-item">
+                        <label>
+                            <input type="checkbox" id="weather-tool">
+                            <i class="fas fa-cloud"></i>
+                            Weather Function
+                        </label>
+                    </div>
+                    <div class="tool-item">
+                        <label>
+                            <input type="checkbox" id="img2txt-tool">
+                            <i class="fas fa-image"></i>
+                            Image to Text
+                        </label>
+                    </div>
+                    <div class="tool-item">
+                        <label>
+                            <input type="checkbox" id="txt2img-tool">
+                            <i class="fas fa-paint-brush"></i>
+                            Text to Image
+                        </label>
+                    </div>
+                    <div class="tool-item">
+                        <label>
+                            <input type="checkbox" id="txt2speech-tool">
+                            <i class="fas fa-volume-up"></i>
+                            Text to Speech
+                        </label>
+                    </div>
+                </div>
+                <button id="save-tools-button" class="wide-button">Save Settings</button>
+            </div>
+        </div>
+
+        <!-- History Modal -->
+        <div id="history-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal" id="close-history-modal">×</span>
+                <h2>Chat History</h2>
+                <div id="history-list" class="history-list">
+                    <!-- Chat history items will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Deep Thinking Modal -->
+        <div id="deep-thinking-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" id="close-thinking-modal">×</span>
+                <h2>Select Reasoning Model</h2>
+                <div class="reasoning-models">
+                    <select id="reasoning-model-select" class="wide-select" title="Select Reasoning Model">
+                        <option value="">None (Default)</option>
+                        <option value="deepseek-reasoner">Deepseek Reasoner</option>
+                        <option value="o1-mini">O1 Mini Reasoning</option>
+                        <option value="o3-mini">O3 Mini Reasoning</option>
+                        <option value="grok-beta">Grok Beta</option>
+                    </select>
+                    <button id="save-reasoning" class="wide-button">Save Selection</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Web Search Modal -->
+        <div id="web-search-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-modal" id="close-web-modal">×</span>
+                <h2>Web Search</h2>
+                <div class="search-input">
+                    <input type="url" id="website-url" placeholder="Enter website URL..." class="wide-input">
+                    <button id="start-web-search" class="wide-button">Search Website</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-indicator" class="loading-indicator hidden">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    </div>
+
+    <script src="script.js" type="module"></script>
+</body>
+</html>

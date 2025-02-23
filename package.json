@@ -1,0 +1,11 @@
+{
+  "name": "ai-chat-app",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "bash ./build.sh",
+    "watch": "tailwindcss -i ./src/input.css -o ./dist/output.css --watch"
+  },
+  "dependencies": {
+    "tailwindcss": "^3.3.0"
+  }
+}
