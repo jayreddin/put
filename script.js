@@ -5,15 +5,16 @@ import { handleChatRequest } from './AICode/utility.js';
 const aiFiles = {
     defaultChat: async (message, model, systemPrompt) => {
         try {
-            // Default configuration without system prompt
+            // Default configuration
             const chatOptions = {
                 model,
                 stream: true,
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }],
+                format: 'markdown' // Ensure markdown format for all default models
             };
 
             // Only add systemPrompt for models that support it
-            if (systemPrompt && !['o1-mini'].includes(model)) {
+            if (systemPrompt && !['o1-mini'].includes(model)) { // o1-mini does not support system prompts
                 chatOptions.systemPrompt = systemPrompt;
             }
 
@@ -31,7 +32,8 @@ const aiFiles = {
             return await puter.ai.chat(message, {
                 model: 'o1-mini',
                 stream: true,
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }], // Removed system prompt as o1-mini doesn't support it
+                format: 'markdown' // Ensure markdown format
             });
         } catch (error) {
             console.error("O1-mini error:", error);
@@ -41,14 +43,16 @@ const aiFiles = {
 
     "deepseek-reasoner": async (message, model, systemPrompt) => {
         try {
-            const reasoningPrompt = `${systemPrompt || ''}\nAnalyze step by step and provide detailed reasoning.`;
+            // Removed systemPrompt from reasoningPrompt for deepseek-reasoner, it might be causing issues
+            const reasoningPrompt = `Analyze step by step and provide detailed reasoning.`;
             return await puter.ai.chat(message, {
                 model: "deepseek-reasoner",
-                systemPrompt: reasoningPrompt,
+                systemPrompt: reasoningPrompt, // Keep system prompt, but simplify if needed
                 stream: true,
                 temperature: 0.7,
                 max_tokens: 2000,
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }],
+                format: 'markdown' // Ensure markdown format
             });
         } catch (error) {
             console.error("Deepseek Reasoner error:", error);
@@ -56,15 +60,16 @@ const aiFiles = {
         }
     },
 
-    // Gemini models
+    // Gemini models - Corrected to use gemini models directly
     "gemini-2.0-flash": async (message) => {
         try {
             return await puter.ai.chat(message, {
                 model: 'gemini-2.0-flash',
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }],
+                format: 'markdown' // Ensure markdown format
             });
         } catch (error) {
-            console.error("Gemini error:", error);
+            console.error("Gemini 2.0 Flash error:", error);
             throw error;
         }
     },
@@ -73,23 +78,28 @@ const aiFiles = {
         try {
             return await puter.ai.chat(message, {
                 model: 'gemini-1.5-flash',
-                messages: [{ role: 'user', content: message }]
+                messages: [{ role: 'user', content: message }],
+                format: 'markdown' // Ensure markdown format
             });
         } catch (error) {
-            console.error("Gemini error:", error);
+            console.error("Gemini 1.5 Flash error:", error);
             throw error;
         }
     },
 
-    // Meta Llama models
+    // Meta Llama models - Adjusted systemPrompt handling, ensure systemPrompt is a string if provided
     "meta-llama": async (message, model, systemPrompt) => {
         try {
-            return await puter.ai.chat(message, {
+            const chatOptions = {
                 model,
-                systemPrompt,
                 stream: true,
-                format: 'markdown'
-            });
+                messages: [{ role: 'user', content: message }],
+                format: 'markdown' // Ensure markdown format
+            };
+            if (systemPrompt) {
+                chatOptions.systemPrompt = String(systemPrompt); // Ensure systemPrompt is a string
+            }
+            return await puter.ai.chat(message, chatOptions);
         } catch (error) {
             console.error("Meta Llama error:", error);
             throw error;
@@ -354,9 +364,9 @@ function saveReasoningSettings() {
 }
 
 function handleImageUpload() {
-    puter.ui.showOpenFilePicker({ 
+    puter.ui.showOpenFilePicker({
         accept: 'image/*',
-        multiple: false 
+        multiple: false
     }).then(file => {
         if (file) {
             file.read().then(blob => {
@@ -495,7 +505,7 @@ function appendMessage(sender, message) {
     const timestamp = getTimestamp();
     const prefix = sender === 'user' ? 'You: ' : 'AI: ';
     messageDiv.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">${prefix}</span>${message.replace(/\n/g, '<br>')}`;
-    
+
     // Insert at the beginning to show newest first
     if (messagesContainer.firstChild) {
         messagesContainer.insertBefore(messageDiv, messagesContainer.firstChild);
@@ -517,7 +527,7 @@ function updateLastAIMessage(newContent) {
     }
 }
 
-// Convert text to basic Markdown (for Codestral)
+// Convert text to basic Markdown (for Codestral) - No changes needed as current implementation handles basic markdown like bold, italics, lists and newlines.
 function convertToMarkdown(text) {
     let markdownText = text.replace(/\n/g, '<br>'); // Newlines to <br>
     markdownText = markdownText.replace(/^\s*(\d+\.|\*|-)\s+/gm, (match) => {  // Lists
@@ -531,35 +541,35 @@ function convertToMarkdown(text) {
 // --- Main Message Handling ---
 async function handleChatMessage(message, imageUrl = null) {
     const timestamp = getTimestamp();
-    
+
     // Create a new message group for this exchange
     const messageGroup = document.createElement('div');
     messageGroup.classList.add('message-group');
-    
+
     // Create user message
     const userDiv = document.createElement('div');
     userDiv.classList.add('message', 'user-message');
     userDiv.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">You: </span>${message.replace(/\n/g, '<br>')}`;
-    
+
     // Create AI message placeholder
     const aiDiv = document.createElement('div');
     aiDiv.classList.add('message', 'ai-message');
-    
+
     // Add messages to group
     messageGroup.appendChild(userDiv);
     messageGroup.appendChild(aiDiv);
-    
+
     // Insert at the beginning of messages container
     messagesContainer.insertBefore(messageGroup, messagesContainer.firstChild);
 
     if (!currentChat) {
         startNewChat();
     }
-    
-    currentChat.messages.push({ 
-        role: 'user', 
+
+    currentChat.messages.push({
+        role: 'user',
         content: message,
-        timestamp: timestamp 
+        timestamp: timestamp
     });
 
     try {
@@ -591,12 +601,12 @@ async function handleChatMessage(message, imageUrl = null) {
         aiResponse = formatModelResponse(aiResponse, currentModel);
         updateAIDivContent(aiDiv, getTimestamp(), aiResponse);
 
-        currentChat.messages.push({ 
-            role: 'ai', 
+        currentChat.messages.push({
+            role: 'ai',
             content: aiResponse,
             timestamp: getTimestamp()
         });
-        
+
         saveSettingsAndHistory(); // Save after processing
 
     } catch (error) {
@@ -608,10 +618,10 @@ async function handleChatMessage(message, imageUrl = null) {
             <span class="message-prefix">AI: </span>
             <span class="error-message">Error: ${errorMessage}</span>
         `;
-        
+
         if (currentChat) {
-            currentChat.messages.push({ 
-                role: 'error', 
+            currentChat.messages.push({
+                role: 'error',
                 content: `Error: ${errorMessage}`,
                 timestamp: errorTimestamp
             });
@@ -802,17 +812,17 @@ function loadChat(chatId = null) {
     if (currentChat) {
         // Group messages by pairs and display in reverse order
         const messages = [...currentChat.messages].reverse();
-        
+
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
             const messageGroup = document.createElement('div');
             messageGroup.classList.add('message-group');
-            
+
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message', `${msg.role}-message`);
             messageDiv.innerHTML = `<span class="message-timestamp">${msg.timestamp || getTimestamp()}</span> <span class="message-prefix">${msg.role === 'user' ? 'You: ' : 'AI: '}</span>${msg.content.replace(/\n/g, '<br>')}`;
             messageGroup.appendChild(messageDiv);
-            
+
             messagesContainer.appendChild(messageGroup);
         }
     }
@@ -821,9 +831,9 @@ function loadChat(chatId = null) {
 
 imageButton.addEventListener('click', async () => {
     try {
-        const file = await puter.ui.showOpenFilePicker({ 
+        const file = await puter.ui.showOpenFilePicker({
             accept: 'image/*',
-            multiple: false 
+            multiple: false
         });
         if (file) {
             const blob = await file.read();
@@ -874,7 +884,7 @@ if (searchButton) {
     searchButton.addEventListener('click', () => {
         try {
             const query = window.prompt("Enter your search query:", "");
-            
+
             if (query && typeof query === 'string' && query.trim()) {
                 handleChatMessage(`Search the web for: ${query.trim()}`);
             }
@@ -1001,9 +1011,9 @@ oldButtons.forEach(buttonId => {
 // Tool buttons event listeners
 imageButton?.addEventListener('click', async () => {
     try {
-        const file = await puter.ui.showOpenFilePicker({ 
+        const file = await puter.ui.showOpenFilePicker({
             accept: 'image/*',
-            multiple: false 
+            multiple: false
         });
         if (file) {
             const blob = await file.read();
