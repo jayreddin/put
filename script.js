@@ -712,7 +712,6 @@ applyCustomModelButton.addEventListener("click", () => {
     }
 });
 
-
 saveSettingsButton.addEventListener("click", () => {
     currentModel = modelSelectHeader.value;
     currentSystemPrompt = systemPrompt.value;
