@@ -1,15 +1,17 @@
-async function mistralChat(message, model, systemPrompt) {
+export async function mistralChat(message, model, systemPrompt = null) {
     try {
-        const response = await puter.ai.chat(message, { model: model, stream: true, systemPrompt: systemPrompt });
-        let fullResponse = "";
-        for await (const part of response) {
-            fullResponse += part?.text || "";
-        }
-        return { message: { content: [{ text: fullResponse }] } };
+        const response = await puter.ai.chat(message, {
+            model: model, // Will be one of Mistral's models
+            systemPrompt: systemPrompt,
+            stream: false
+        });
+
+        return {
+            text: response,
+            model: model
+        };
     } catch (error) {
-        console.error(`Mistral Error with model ${model}:`, error);
-        return { text: `Error with ${model}: ${error.message}` };
+        console.error("Mistral AI API Error:", error);
+        throw error;
     }
 }
-
-export { mistralChat };

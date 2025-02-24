@@ -34,6 +34,7 @@
                     <option value="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo">Meta Llama 70B</option>
                     <option value="meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo">Meta Llama 405B</option>
                     <option value="mistral-large-latest">Mistral Large</option>
+                    <option value="pixtral-large-latest">Pixtral Large</option>
                     <option value="codestral-latest">Codestral</option>
                     <option value="google/gemma-2-27b-it">Gemma 2-27B</option>
                     <option value="grok-beta">Grok Beta</option>
@@ -67,6 +68,9 @@
                 <button id="send-button" class="icon-button" title="Send">
                     <i class="fas fa-paper-plane"></i>
                 </button>
+            </div>
+            <div id="progress-bar-container">
+            <div id="progress-bar"></div>
             </div>
             <div id="active-reasoning" class="active-reasoning hidden">
                 Using reasoning model: <span id="active-reasoning-name"></span>
@@ -215,12 +219,11 @@
                 </div>
             </div>
         </div>
+        <div id="loading-indicator" class="loading-indicator hidden">
+            <div class="spinner"></div>
+            <div>Processing...</div>
+        </div>
     </div>
-
-    <div id="loading-indicator" class="loading-indicator hidden">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-    </div>
-
-    <script src="script.js" type="module"></script>
+        <script src="script.js" type="module"></script>
 </body>
 </html>

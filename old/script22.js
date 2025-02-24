@@ -1,178 +1,113 @@
 // script.js
 
-import { ChatService } from './services/ChatService.js';
-import { APP_CONSTANTS, UI_CONSTANTS, ERROR_MESSAGES } from './config/constants.js';
-import { ModelService } from './services/ModelService.js';
-import { InputValidator } from './utils/InputValidator.js';
+import { handleChatRequest } from './AICode/utility.js';
 
-const chatService = new ChatService();
-const modelService = new ModelService();
-let currentChat = null;
-
-// Initialize variables
-let currentModel = APP_CONSTANTS.DEFAULT_MODEL;
-let currentSystemPrompt = '';
-let customModels = {};
-let chatHistory = [];
-let enabledTools = {};
-let activeReasoningModel = null;
-let isReasoningActive = false;
-let currentReasoningDiv = null;
-
-// Helper Functions
-function getTimestamp() {
-    return new Date().toLocaleTimeString();
-}
-
-function convertToMarkdown(text) {
-    if (!text) return '';
-    return text
-        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="$1">$2</code></pre>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        .replace(/\n/g, '<br>');
-}
-
-const progressBarContainer = document.getElementById('progress-bar-container');
-const progressBar = document.getElementById('progress-bar');
-
-function showLoading() {
-    progressBarContainer.style.visibility = 'visible';
-    progressBar.style.width = '0%';
-}
-
-function hideLoading() {
-    progressBarContainer.style.visibility = 'hidden';
-    progressBar.style.width = '100%';
-}
-
-function updateProgressBar(progress) {
-    progressBar.style.width = `${progress}%`;
-}
-
-// Storage Functions
-function loadSettingsAndHistory() {
-    try {
-        // Load settings
-        const savedSettings = localStorage.getItem(APP_CONSTANTS.STORAGE_KEYS.SETTINGS);
-        if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            currentModel = settings.model || APP_CONSTANTS.DEFAULT_MODEL;
-            currentSystemPrompt = settings.systemPrompt || '';
-            enabledTools = settings.enabledTools || {};
-            customModels = settings.customModels || {};
-            
-            // Update UI
-            modelSelectHeader.value = currentModel;
-            modelNameDisplay.textContent = currentModel;
-            systemPrompt.value = currentSystemPrompt;
-            
-            // Update tool checkboxes
-            weatherToolCheckbox.checked = enabledTools.weather || false;
-            img2txtToolCheckbox.checked = enabledTools.img2txt || false;
-            txt2imgToolCheckbox.checked = enabledTools.txt2img || false;
-            txt2speechToolCheckbox.checked = enabledTools.txt2speech || false;
-        }
-
-        // Load chat history
-        const savedHistory = localStorage.getItem(APP_CONSTANTS.STORAGE_KEYS.HISTORY);
-        if (savedHistory) {
-            chatHistory = JSON.parse(savedHistory);
-            if (chatHistory.length > 0) {
-                currentChat = chatHistory[chatHistory.length - 1];
-                loadChat();
-            } else {
-                startNewChat();
-            }
-        } else {
-            startNewChat();
-        }
-    } catch (error) {
-        console.error('Error loading settings and history:', error);
-        startNewChat();
-    }
-}
-
-function saveSettingsAndHistory() {
-    try {
-        // Save settings
-        const settings = {
-            model: currentModel,
-            systemPrompt: currentSystemPrompt,
-            enabledTools,
-            customModels
-        };
-        localStorage.setItem(APP_CONSTANTS.STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
-
-        // Save chat history
-        localStorage.setItem(APP_CONSTANTS.STORAGE_KEYS.HISTORY, JSON.stringify(chatHistory));
-    } catch (error) {
-        console.error('Error saving settings and history:', error);
-    }
-}
-
-// Add missing helper functions
-async function processAIResponse(response, aiDiv) {
-    let aiResponse = '';
-    const timestamp = getTimestamp();
-    
-    try {
-        if (response && typeof response[Symbol.asyncIterator] === 'function') {
-            for await (const part of response) {
-                const textChunk = part?.text || '';
-                aiResponse += textChunk;
-                aiDiv.innerHTML = `
-                    <span class="message-timestamp">${timestamp}</span>
-                    <span class="message-prefix">AI: </span>
-                    ${convertToMarkdown(aiResponse)}
-                `;
-            }
-        } else if (typeof response === 'string') {
-            aiResponse = response;
-        } else {
-            aiResponse = response?.text || response?.message?.content || "No content available.";
-        }
-        return aiResponse;
-    } catch (error) {
-        console.error("Error processing AI response:", error);
-        throw error;
-    }
-}
-
-function formatModelResponse(text, model) {
-    let formattedText = convertToMarkdown(text);
-    if (model === 'deepseek-reasoner') {
-        formattedText = formattedText.replace(
-            /Thought (process)?:(.*?)(?:\n|$)/g,
-            '<span style="color: grey;">Thought $1:$2</span>'
-        );
-    }
-    return formattedText;
-}
-
-function updateAIDivContent(aiDiv, timestamp, content) {
-    aiDiv.innerHTML = `
-        <span class="message-timestamp">${timestamp}</span>
-        <span class="message-prefix">AI: </span>
-        ${content}
-    `;
-}
-
-// Update aiFiles object
 const aiFiles = {
     defaultChat: async (message, model, systemPrompt) => {
         try {
-            const handler = getHandler(model);
-            const response = await handler(message, systemPrompt);
-            if (!response) {
-                throw new Error('No response from AI model');
-            }
+            const response = await puter.ai.chat(message, {
+                model: model,
+                systemPrompt: systemPrompt,
+                stream: true
+            });
             return response;
         } catch (error) {
             console.error(`Error in defaultChat for model ${model}:`, error);
-            throw error; // Pass the error up for proper handling
+            throw new Error(error.error?.message || 'Failed to get response from AI model');
         }
+    },
+
+    "deepseek-reasoner": async (message, model, systemPrompt) => {
+        try {
+            // Add reasoning-specific system prompt
+            const reasoningPrompt = `${systemPrompt || ''}\nAnalyze step by step and provide detailed reasoning.`;
+            return await puter.ai.chat(message, {
+                model: "deepseek-reasoner",
+                systemPrompt: reasoningPrompt,
+                stream: true,
+                temperature: 0.7, // Add temperature for more thoughtful responses
+                max_tokens: 2000  // Ensure enough tokens for detailed reasoning
+            });
+        } catch (error) {
+            console.error("Deepseek Reasoner error:", error);
+            throw new Error(error.error?.message || 'Failed to get response from Deepseek Reasoner');
+        }
+    },
+
+    "gpt-4o-mini": async (message, model, systemPrompt, imageUrl = null) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "gpt-4o": async (message, model, systemPrompt, imageUrl = null) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "o3-mini": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+
+
+    "o1-mini": async (message, model) => {
+        // Simple chat without system prompt
+        const response = await puter.ai.chat(message, {
+            model: model,
+            stream: true
+        });
+        return response; // Return the response directly for normal processing
+    },
+
+    //"o1-mini2": async (message, model) => {
+        // O1-mini has a different message format and doesn't support system prompts
+        //return await puter.ai.chat(message, { 
+            //model: "o1-mini",
+            //stream: true,
+           // options: {
+                //prompt: message, // Just send the message directly
+               // temperature: 0.7,
+               // max_tokens: 2000
+            //}
+        //});
+    //},
+    "claude-3-5-sonnet": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "deepseek-chat": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "gemini-2.0-flash": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "gemini-1.5-flash": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "google/gemma-2-27b-it": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "mistral-large-latest": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "pixtral-large-latest": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { 
+            model: "pixtral-large-latest", // Fixed model name
+            systemPrompt: systemPrompt, 
+            stream: true 
+        });
+    },
+    "codestral-latest": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "grok-beta": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
+    },
+    "xai-beta": async (message, model, systemPrompt) => {
+        return await puter.ai.chat(message, { model: model, systemPrompt: systemPrompt, stream: true });
     }
 };
 
@@ -230,6 +165,17 @@ const modals = {
     'tools-modal': toolsModal
 };
 
+// Initialize variables
+let currentModel = 'gpt-4o-mini';
+let currentSystemPrompt = '';
+let customModels = {};
+let chatHistory = [];
+let currentChat = null;
+let enabledTools = {};
+let activeReasoningModel = null;
+let defaultModel = 'gpt-4o-mini';
+let isReasoningActive = false;
+
 // Modal Management Functions
 function showModal(modalId) {
     closeAllModals();
@@ -255,7 +201,7 @@ function initializeUI() {
     sendButton.addEventListener('click', sendMessage);
     chatInput.addEventListener('keydown', handleEnterKey);
 
-    settingsButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.SETTINGS));
+    settingsButton.addEventListener('click', () => showModal('settings-modal'));
     closeModal.addEventListener('click', closeAllModals);
     saveSettingsButton.addEventListener('click', saveSettings);
     customModelButton.addEventListener('click', toggleCustomModelCard);
@@ -263,18 +209,18 @@ function initializeUI() {
     modelSelectHeader.addEventListener('change', changeModel);
     systemPrompt.addEventListener('change', changeSystemPrompt);
 
-    historyButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.HISTORY));
+    historyButton.addEventListener('click', () => showModal('history-modal'));
     closeHistoryModal.addEventListener('click', closeAllModals);
     newChatButton.addEventListener('click', startNewChat);
 
-    toolsButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.TOOLS));
+    toolsButton.addEventListener('click', () => showModal('tools-modal'));
     closeToolsModal.addEventListener('click', closeAllModals);
     weatherToolCheckbox.addEventListener('change', toggleWeatherTool);
     img2txtToolCheckbox.addEventListener('change', toggleImg2txtTool);
     txt2imgToolCheckbox.addEventListener('change', toggleTxt2imgTool);
     txt2speechToolCheckbox.addEventListener('change', toggleTxt2speechTool);
 
-    webSearchButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.WEB_SEARCH));
+    webSearchButton.addEventListener('click', () => showModal('web-search-modal'));
     startWebSearch.addEventListener('click', startWebsiteAnalysis);
 
     deepThinkingButton.addEventListener('click', toggleReasoningModal);
@@ -287,17 +233,6 @@ function initializeUI() {
     brainButton?.addEventListener('click', handleBrainButton);
 
     window.addEventListener('click', clickOutsideModal);
-
-    // Add the processAIResponse function to the global scope
-    window.processAIResponse = processAIResponse;
-    window.formatModelResponse = formatModelResponse;
-    window.updateAIDivContent = updateAIDivContent;
-}
-
-function clickOutsideModal(event) {
-    if (Object.values(modals).some(modal => event.target === modal)) {
-        closeAllModals();
-    }
 }
 
 // --- UI Event Handlers ---
@@ -366,6 +301,7 @@ function applyCustomModel() {
 
 function changeModel() {
     const newModel = modelSelectHeader.value;
+    defaultModel = newModel;
     if (!isReasoningActive) {
         currentModel = newModel;
     }
@@ -406,7 +342,7 @@ function startWebsiteAnalysis() {
 }
 
 function toggleReasoningModal() {
-    showModal(UI_CONSTANTS.MODAL_IDS.DEEP_THINKING);
+    showModal('deep-thinking-modal');
 }
 
 function applyReasoningModel() {
@@ -432,9 +368,9 @@ function saveReasoningSettings() {
 }
 
 function handleImageUpload() {
-    puter.ui.showOpenFilePicker({
+    puter.ui.showOpenFilePicker({ 
         accept: 'image/*',
-        multiple: false
+        multiple: false 
     }).then(file => {
         if (file) {
             file.read().then(blob => {
@@ -480,119 +416,246 @@ function handleSearchQuery() {
     }
 }
 
+function handleBrainButton() {
+    const message = chatInput.value.trim();
+    if (message) {
+        const aiFunction = aiFiles[currentModel];
+        if (typeof aiFunction !== 'function') {
+            throw new Error(`Model "${currentModel}" is not a valid function.`);
+        }
+        aiFunction(message, currentModel, currentSystemPrompt).then(response => {
+            let aiResponse = "";
+            if (response && typeof response[Symbol.asyncIterator] === 'function') {
+                for (const part of response) {
+                    const textChunk = part?.text || '';
+                    aiResponse += textChunk;
+                    updateLastAIMessage(aiResponse);
+                }
+            } else {
+                aiResponse = response?.message?.content?.[0]?.text || response?.text || "No content available.";
+                appendMessage('ai', aiResponse);
+            }
+        }).catch(error => {
+            console.error("Error during processing:", error);
+            appendMessage('ai', `Error using ${currentModel}: ${error.message || error}`);
+        });
+    }
+}
+
+function clickOutsideModal(event) {
+    if (Object.values(modals).some(modal => event.target === modal)) {
+        closeAllModals();
+    }
+}
+
+// Function to load settings and history
+async function loadSettingsAndHistory() {
+    try {
+        loadingIndicator.style.display = 'block';
+        const blob = await puter.fs.read("chat_settings.json");
+        const settings = JSON.parse(await blob.text());
+        currentModel = settings.currentModel || 'gpt-4o-mini';
+        currentSystemPrompt = settings.currentSystemPrompt || '';
+        customModels = settings.customModels || {};
+        chatHistory = settings.chatHistory || [];
+        enabledTools = settings.enabledTools || {};
+        modelNameDisplay.textContent = currentModel;
+        modelSelectHeader.value = currentModel;
+        systemPrompt.value = currentSystemPrompt;
+        weatherToolCheckbox.checked = enabledTools.weather === true;
+        img2txtToolCheckbox.checked = enabledTools.img2txt === true;
+        txt2imgToolCheckbox.checked = enabledTools.txt2img === true;
+        txt2speechToolCheckbox.checked = enabledTools.txt2speech === true;
+
+        Object.values(customModels).forEach(model => {
+            const option = document.createElement("option");
+            option.value = model.customProvider;
+            option.textContent = model.savedModelName;
+            modelSelectHeader.appendChild(option);
+        });
+
+        loadChat();
+    } catch (error) {
+        console.log("No settings file found or error loading settings, using defaults:", error);
+    } finally {
+        loadingIndicator.style.display = 'none';
+    }
+}
+
+//Function to save settings and history
+async function saveSettingsAndHistory() {
+    const settings = {
+        currentModel,
+        currentSystemPrompt,
+        customModels,
+        chatHistory,
+        enabledTools
+    };
+    try {
+        await puter.fs.write("chat_settings.json", JSON.stringify(settings));
+    } catch (error) {
+        console.error("Error saving settings", error);
+    }
+}
+
+function getTimestamp() {
+    const now = new Date();
+    return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+}
+
+function appendMessage(sender, message) {
+    const messageDiv = document.createElement('div');
+    messageDiv.classList.add('message', `${sender}-message`);
+    const timestamp = getTimestamp();
+    const prefix = sender === 'user' ? 'You: ' : 'AI: ';
+    messageDiv.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">${prefix}</span>${message.replace(/\n/g, '<br>')}`;
+    
+    // Insert at the beginning to show newest first
+    if (messagesContainer.firstChild) {
+        messagesContainer.insertBefore(messageDiv, messagesContainer.firstChild);
+    } else {
+        messagesContainer.appendChild(messageDiv);
+    }
+    return messageDiv;
+}
+
+//Helper function to update the content of last AI message.
+function updateLastAIMessage(newContent) {
+    const aiMessages = messagesContainer.querySelectorAll('.ai-message');
+    if (aiMessages.length > 0) {
+        const lastAIMessage = aiMessages[0];
+        const timestamp = lastAIMessage.querySelector('.message-timestamp').textContent;
+        lastAIMessage.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">AI: </span>${newContent.replace(/\n/g, '<br>')}`;
+    } else {
+        appendMessage('ai', newContent);
+    }
+}
+
+// Convert text to basic Markdown (for Codestral)
+function convertToMarkdown(text) {
+    let markdownText = text.replace(/\n/g, '<br>'); // Newlines to <br>
+    markdownText = markdownText.replace(/^\s*(\d+\.|\*|-)\s+/gm, (match) => {  // Lists
+        return `<br>${match}`;
+    });
+    markdownText = markdownText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
+    markdownText = markdownText.replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italics
+    return markdownText;
+}
+
+// --- Main Message Handling ---
 async function handleChatMessage(message, imageUrl = null) {
     const timestamp = getTimestamp();
     
-    // Create message containers
+    // Create a new message group for this exchange
     const messageGroup = document.createElement('div');
     messageGroup.classList.add('message-group');
-
-    // Create reasoning div
-    const reasoningDiv = document.createElement('div');
-    reasoningDiv.classList.add('thought-process');
-    reasoningDiv.style.display = 'none';
-    currentReasoningDiv = reasoningDiv; // Store reference to current reasoning div
     
-    // Create AI message div
-    const aiDiv = document.createElement('div');
-    aiDiv.classList.add('message', 'ai-message');
-    aiDiv.appendChild(reasoningDiv);
-
-    // Create message content div
-    const messageContentDiv = document.createElement('div');
-    messageContentDiv.classList.add('message-content');
-    aiDiv.appendChild(messageContentDiv);
-    
-    // Create user message div
+    // Create user message
     const userDiv = document.createElement('div');
     userDiv.classList.add('message', 'user-message');
-    userDiv.innerHTML = `
-        <div class="message-content">
-            <span class="message-timestamp">${timestamp}</span>
-            <span class="message-prefix">You: </span>
-            ${message.replace(/\n/g, '<br>')}
-        </div>
-    `;
+    userDiv.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">You: </span>${message.replace(/\n/g, '<br>')}`;
+    
+    // Create AI message placeholder
+    const aiDiv = document.createElement('div');
+    aiDiv.classList.add('message', 'ai-message');
+    
+    // Add messages to group
     messageGroup.appendChild(userDiv);
-
     messageGroup.appendChild(aiDiv);
-
+    
     // Insert at the beginning of messages container
     messagesContainer.insertBefore(messageGroup, messagesContainer.firstChild);
 
-    let progressInterval; // Declare progressInterval outside the try block
+    if (!currentChat) {
+        startNewChat();
+    }
+    
+    currentChat.messages.push({ 
+        role: 'user', 
+        content: message,
+        timestamp: timestamp 
+    });
 
     try {
-        if (!InputValidator.validateMessage(message)) {
-            throw new Error('Invalid message format');
-        }
-
         showLoading();
-        // Simulate progress
-        let progress = 0;
-        progressInterval = setInterval(() => {
-            progress += 10;
-            updateProgressBar(progress);
-            if (progress >= 90) {
-                clearInterval(progressInterval);
+        let response;
+
+        if (currentModel === 'deepseek-reasoner') {
+            response = await aiFiles["deepseek-reasoner"](message, currentModel, currentSystemPrompt);
+        } else {
+            response = await aiFiles.defaultChat(message, currentModel, currentSystemPrompt);
+        }
+
+        let aiResponse = "";
+        const aiTimestamp = getTimestamp();
+
+        try {
+            if (response && typeof response[Symbol.asyncIterator] === 'function') {
+                for await (const part of response) {
+                    const textChunk = part?.text || '';
+                    aiResponse += textChunk;
+                    aiDiv.innerHTML = `
+                        <span class="message-timestamp">${aiTimestamp}</span>
+                        <span class="message-prefix">AI: </span>
+                        ${aiResponse.replace(/\n/g, '<br>')}
+                    `;
+                }
+            } else {
+                aiResponse = response?.message?.content?.[0]?.text || 
+                            response?.choices?.[0]?.message?.content || 
+                            response?.text || 
+                            "No content available.";
+                aiDiv.innerHTML = `
+                    <span class="message-timestamp">${aiTimestamp}</span>
+                    <span class="message-prefix">AI: </span>
+                    ${aiResponse.replace(/\n/g, '<br>')}
+                `;
             }
-        }, 100);
+        } catch (streamError) {
+            console.error("Streaming error:", streamError);
+            throw new Error("Failed to process AI response");
+        }
 
-        const response = await chatService.sendMessage(message, {
-            model: currentModel,
-            systemPrompt: currentSystemPrompt
+        // --- Model-Specific Formatting (After Response Handling) ---
+        if (currentModel === 'deepseek-reasoner') {
+          // Apply greyed-out styling to thought process
+          aiResponse = aiResponse.replace(/Thought (process)?:(.*?)(?:\n|$)/g, '<span style="color: grey;">Thought $1:$2</span>');
+          aiDiv.innerHTML = aiResponse;
+
+        } else if (currentModel === 'codestral-latest') {
+            //Convert to markdown
+            aiResponse = convertToMarkdown(aiResponse);
+            aiDiv.innerHTML = aiResponse;
+        }
+      // --- End Model-Specific Formatting ---
+        currentChat.messages.push({ 
+            role: 'ai', 
+            content: aiResponse,
+            timestamp: getTimestamp()
         });
-
-        clearInterval(progressInterval);
-        hideLoading();
-
-        // Update AI response
-        const aiContent = response.content;
-        const reasoningContent = response.reasoning_content;
-
-        messageContentDiv.innerHTML = `
-            <span class="message-timestamp">${getTimestamp()}</span>
-            <span class="message-prefix">AI: </span> 
-            ${aiContent}
-        `;
-
-        // Update reasoning content
-        reasoningDiv.textContent = reasoningContent;
-        reasoningDiv.style.display = 'none'; // Hide reasoning div after response
-
-        // Save to chat history
-        if (!currentChat) {
-            startNewChat();
-        }
-        currentChat.messages.push(
-            { role: 'user', content: message, timestamp },
-            { role: 'ai', content: aiContent, reasoning_content: reasoningContent, timestamp: getTimestamp() }
-        );
-        saveSettingsAndHistory();
-
-        // After response is complete, minimize reasoning
-        if (reasoningDiv.textContent) {
-            const toggleButton = document.createElement('button');
-            toggleButton.textContent = 'Show reasoning';
-            toggleButton.classList.add('toggle-reasoning');
-            toggleButton.onclick = () => {
-                const isHidden = reasoningDiv.style.display === 'none';
-                reasoningDiv.style.display = isHidden ? 'block' : 'none';
-                toggleButton.textContent = isHidden ? 'Hide reasoning' : 'Show reasoning';
-            };
-            reasoningDiv.style.display = 'none';
-            aiDiv.insertBefore(toggleButton, messageContentDiv);
-        }
+        
+        saveSettingsAndHistory(); // Save after processing
 
     } catch (error) {
-        console.error("Error:", error);
-        messageContentDiv.innerHTML = `
-            <span class="message-timestamp">${getTimestamp()}</span>
+        console.error("Full error object:", error);
+        const errorTimestamp = getTimestamp();
+        const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        aiDiv.innerHTML = `
+            <span class="message-timestamp">${errorTimestamp}</span>
             <span class="message-prefix">AI: </span>
-            Error: ${error.message || 'An error occurred'}
+            <span class="error-message">Error: ${errorMessage}</span>
         `;
+        
+        if (currentChat) {
+            currentChat.messages.push({ 
+                role: 'error', 
+                content: `Error: ${errorMessage}`,
+                timestamp: errorTimestamp
+            });
+        }
+        saveSettingsAndHistory();
     } finally {
-        currentReasoningDiv = null;
+        hideLoading();
     }
 }
 
@@ -776,17 +839,17 @@ function loadChat(chatId = null) {
     if (currentChat) {
         // Group messages by pairs and display in reverse order
         const messages = [...currentChat.messages].reverse();
-
+        
         for (let i = 0; i < messages.length; i++) {
             const msg = messages[i];
             const messageGroup = document.createElement('div');
             messageGroup.classList.add('message-group');
-
+            
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message', `${msg.role}-message`);
             messageDiv.innerHTML = `<span class="message-timestamp">${msg.timestamp || getTimestamp()}</span> <span class="message-prefix">${msg.role === 'user' ? 'You: ' : 'AI: '}</span>${msg.content.replace(/\n/g, '<br>')}`;
             messageGroup.appendChild(messageDiv);
-
+            
             messagesContainer.appendChild(messageGroup);
         }
     }
@@ -795,9 +858,9 @@ function loadChat(chatId = null) {
 
 imageButton.addEventListener('click', async () => {
     try {
-        const file = await puter.ui.showOpenFilePicker({
+        const file = await puter.ui.showOpenFilePicker({ 
             accept: 'image/*',
-            multiple: false
+            multiple: false 
         });
         if (file) {
             const blob = await file.read();
@@ -848,7 +911,7 @@ if (searchButton) {
     searchButton.addEventListener('click', () => {
         try {
             const query = window.prompt("Enter your search query:", "");
-
+            
             if (query && typeof query === 'string' && query.trim()) {
                 handleChatMessage(`Search the web for: ${query.trim()}`);
             }
@@ -893,7 +956,7 @@ if (brainButton) {
 }
 
 
-toolsButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.TOOLS));
+toolsButton.addEventListener('click', () => showModal('tools-modal'));
 
 closeToolsModal.addEventListener('click', () => {
     toolsModal.style.display = 'none';
@@ -925,18 +988,18 @@ txt2speechToolCheckbox.addEventListener('change', () => {
     saveSettingsAndHistory();
 });
 
-webSearchButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.WEB_SEARCH));
+webSearchButton.addEventListener('click', () => showModal('web-search-modal'));
 
 startWebSearch.addEventListener('click', async () => {
     const url = websiteUrl.value.trim();
     if (url) {
         closeAllModals();
         handleChatMessage(`Analyzing website: ${url}`);
-        websiteUrl.value = '';
+        websiteUrl.value = ''; // Clear input
     }
 });
 
-deepThinkingButton.addEventListener('click', () => showModal(UI_CONSTANTS.MODAL_IDS.DEEP_THINKING));
+deepThinkingButton.addEventListener('click', () => showModal('deep-thinking-modal'));
 
 // Close modals
 document.querySelectorAll('.close-modal').forEach(button => {
@@ -951,6 +1014,17 @@ window.addEventListener('click', (event) => {
 
 document.addEventListener('DOMContentLoaded', loadSettingsAndHistory);
 
+// Update loading indicator display
+function showLoading() {
+    const loader = document.getElementById('loading-indicator');
+    loader.classList.remove('hidden');
+}
+
+function hideLoading() {
+    const loader = document.getElementById('loading-indicator');
+    loader.classList.add('hidden');
+}
+
 // Remove old event listeners
 const oldButtons = ['searchButton', 'brainButton', 'linkButton'];
 oldButtons.forEach(buttonId => {
@@ -964,9 +1038,9 @@ oldButtons.forEach(buttonId => {
 // Tool buttons event listeners
 imageButton?.addEventListener('click', async () => {
     try {
-        const file = await puter.ui.showOpenFilePicker({
+        const file = await puter.ui.showOpenFilePicker({ 
             accept: 'image/*',
-            multiple: false
+            multiple: false 
         });
         if (file) {
             const blob = await file.read();
@@ -1030,13 +1104,5 @@ applyReasoning?.addEventListener('click', async () => {
         chatInput.value = '';
     } else {
         alert("Please enter a message first");
-    }
-});
-
-// Add event listener for reasoning updates
-window.addEventListener('reasoningUpdate', (event) => {
-    if (currentReasoningDiv) {
-        currentReasoningDiv.textContent = event.detail.reasoning;
-        currentReasoningDiv.style.display = 'block';
     }
 });

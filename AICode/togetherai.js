@@ -1,15 +1,20 @@
-async function togetheraiChat(message, model, systemPrompt) {
+export async function togetheraiChat(message, model, systemPrompt = null) {
     try {
-        const response = await puter.ai.chat(message, { model: model, stream: true, systemPrompt: systemPrompt });
-        let fullResponse = "";
-        for await (const part of response) {
-            fullResponse += part?.text || "";
-        }
-        return { message: { content: [{ text: fullResponse }] } };
+        // Handle different Llama models
+        const response = await puter.ai.chat(message, {
+            model: model, // Will be one of the Meta-Llama models
+            systemPrompt: systemPrompt,
+            stream: false,
+            temperature: 0.7,
+            max_tokens: 2048
+        });
+
+        return {
+            text: response,
+            model: model
+        };
     } catch (error) {
-        console.error(`TogetherAI Error with model ${model}:`, error);
-        return { text: `Error with ${model}: ${error.message}` };
+        console.error("TogetherAI API Error:", error);
+        throw error;
     }
 }
-
-export { togetheraiChat };

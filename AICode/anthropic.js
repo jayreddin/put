@@ -1,15 +1,20 @@
-async function anthropicChat(message, model, systemPrompt) {
+export async function anthropicChat(message, model, systemPrompt = null) {
     try {
-        const response = await puter.ai.chat(message, { model: 'claude-3-5-sonnet', stream: true, systemPrompt: systemPrompt });
-        let fullResponse = "";
-        for await (const part of response) {
-            fullResponse += part?.text || "";
-        }
-        return { message: { content: [{ text: fullResponse }] } };
+        const response = await puter.ai.chat(message, {
+            model: 'claude-3-5-sonnet',
+            systemPrompt: systemPrompt,
+            stream: false
+        });
+
+        return {
+            message: {
+                content: [{
+                    text: response
+                }]
+            }
+        };
     } catch (error) {
-        console.error(`Anthropic Error with model ${model}:`, error);
-        return { text: `Error with ${model}: ${error.message}` };
+        console.error("Anthropic API Error:", error);
+        throw error;
     }
 }
-
-export { anthropicChat };
