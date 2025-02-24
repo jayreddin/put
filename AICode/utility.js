@@ -7,5 +7,3 @@ async function handleChatRequest(provider, message, model, systemPrompt) {
         return { success: false, error: error, message: `Error with ${model}: ${error.message}` };
     }
 }
-
-export { handleChatRequest };

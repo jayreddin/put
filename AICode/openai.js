@@ -12,5 +12,3 @@ async function openaiChat(message, model, systemPrompt, imageUrl = null) {
         return { text: `Error with ${model}: ${error.message}` };
     }
 }
-
-export { openaiChat };

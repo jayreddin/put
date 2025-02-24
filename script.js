@@ -17,27 +17,10 @@ const aiFiles = {
             if (systemPrompt && !['o1-mini'].includes(model)) { // o1-mini does not support system prompts
                 chatOptions.systemPrompt = systemPrompt;
             }
-
-            const response = await puter.ai.chat(message, chatOptions);
             return response;
         } catch (error) {
             console.error(`Error in defaultChat for model ${model}:`, error);
             throw new Error(error.error?.message || 'Failed to get response from AI model');
-        }
-    },
-
-    // Model-specific handlers
-    "o1-mini": async (message, model) => {
-        try {
-            return await puter.ai.chat(message, {
-                model: 'o1-mini',
-                stream: true,
-                messages: [{ role: 'user', content: message }], // Removed system prompt as o1-mini doesn't support it
-                format: 'markdown' // Ensure markdown format
-            });
-        } catch (error) {
-            console.error("O1-mini error:", error);
-            throw error;
         }
     },
 
@@ -166,10 +149,8 @@ let currentModel = 'gpt-4o-mini';
 let currentSystemPrompt = '';
 let customModels = {};
 let chatHistory = [];
-let currentChat = null;
 let enabledTools = {};
 let activeReasoningModel = null;
-let defaultModel = 'gpt-4o-mini';
 let isReasoningActive = false;
 
 // Modal Management Functions
@@ -297,7 +278,6 @@ function applyCustomModel() {
 
 function changeModel() {
     const newModel = modelSelectHeader.value;
-    defaultModel = newModel;
     if (!isReasoningActive) {
         currentModel = newModel;
     }
@@ -412,133 +392,6 @@ function handleSearchQuery() {
     }
 }
 
-function handleBrainButton() {
-    const message = chatInput.value.trim();
-    if (message) {
-        const aiFunction = aiFiles[currentModel];
-        if (typeof aiFunction !== 'function') {
-            throw new Error(`Model "${currentModel}" is not a valid function.`);
-        }
-        aiFunction(message, currentModel, currentSystemPrompt).then(response => {
-            let aiResponse = "";
-            if (response && typeof response[Symbol.asyncIterator] === 'function') {
-                for (const part of response) {
-                    const textChunk = part?.text || '';
-                    aiResponse += textChunk;
-                    updateLastAIMessage(aiResponse);
-                }
-            } else {
-                aiResponse = response?.message?.content?.[0]?.text || response?.text || "No content available.";
-                appendMessage('ai', aiResponse);
-            }
-        }).catch(error => {
-            console.error("Error during processing:", error);
-            appendMessage('ai', `Error using ${currentModel}: ${error.message || error}`);
-        });
-    }
-}
-
-function clickOutsideModal(event) {
-    if (Object.values(modals).some(modal => event.target === modal)) {
-        closeAllModals();
-    }
-}
-
-// Function to load settings and history
-async function loadSettingsAndHistory() {
-    try {
-        loadingIndicator.style.display = 'block';
-        const blob = await puter.fs.read("chat_settings.json");
-        const settings = JSON.parse(await blob.text());
-        currentModel = settings.currentModel || 'gpt-4o-mini';
-        currentSystemPrompt = settings.currentSystemPrompt || '';
-        customModels = settings.customModels || {};
-        chatHistory = settings.chatHistory || [];
-        enabledTools = settings.enabledTools || {};
-        modelNameDisplay.textContent = currentModel;
-        modelSelectHeader.value = currentModel;
-        systemPrompt.value = currentSystemPrompt;
-        weatherToolCheckbox.checked = enabledTools.weather === true;
-        img2txtToolCheckbox.checked = enabledTools.img2txt === true;
-        txt2imgToolCheckbox.checked = enabledTools.txt2img === true;
-        txt2speechToolCheckbox.checked = enabledTools.txt2speech === true;
-
-        Object.values(customModels).forEach(model => {
-            const option = document.createElement("option");
-            option.value = model.customProvider;
-            option.textContent = model.savedModelName;
-            modelSelectHeader.appendChild(option);
-        });
-
-        loadChat();
-    } catch (error) {
-        console.log("No settings file found or error loading settings, using defaults:", error);
-    } finally {
-        loadingIndicator.style.display = 'none';
-    }
-}
-
-//Function to save settings and history
-async function saveSettingsAndHistory() {
-    const settings = {
-        currentModel,
-        currentSystemPrompt,
-        customModels,
-        chatHistory,
-        enabledTools
-    };
-    try {
-        await puter.fs.write("chat_settings.json", JSON.stringify(settings));
-    } catch (error) {
-        console.error("Error saving settings", error);
-    }
-}
-
-function getTimestamp() {
-    const now = new Date();
-    return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
-}
-
-function appendMessage(sender, message) {
-    const messageDiv = document.createElement('div');
-    messageDiv.classList.add('message', `${sender}-message`);
-    const timestamp = getTimestamp();
-    const prefix = sender === 'user' ? 'You: ' : 'AI: ';
-    messageDiv.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">${prefix}</span>${message.replace(/\n/g, '<br>')}`;
-
-    // Insert at the beginning to show newest first
-    if (messagesContainer.firstChild) {
-        messagesContainer.insertBefore(messageDiv, messagesContainer.firstChild);
-    } else {
-        messagesContainer.appendChild(messageDiv);
-    }
-    return messageDiv;
-}
-
-//Helper function to update the content of last AI message.
-function updateLastAIMessage(newContent) {
-    const aiMessages = messagesContainer.querySelectorAll('.ai-message');
-    if (aiMessages.length > 0) {
-        const lastAIMessage = aiMessages[0];
-        const timestamp = lastAIMessage.querySelector('.message-timestamp').textContent;
-        lastAIMessage.innerHTML = `<span class="message-timestamp">${timestamp}</span> <span class="message-prefix">AI: </span>${newContent.replace(/\n/g, '<br>')}`;
-    } else {
-        appendMessage('ai', newContent);
-    }
-}
-
-// Convert text to basic Markdown (for Codestral) - No changes needed as current implementation handles basic markdown like bold, italics, lists and newlines.
-function convertToMarkdown(text) {
-    let markdownText = text.replace(/\n/g, '<br>'); // Newlines to <br>
-    markdownText = markdownText.replace(/^\s*(\d+\.|\*|-)\s+/gm, (match) => {  // Lists
-        return `<br>${match}`;
-    });
-    markdownText = markdownText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
-    markdownText = markdownText.replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italics
-    return markdownText;
-}
-
-// --- Main Message Handling ---
 async function handleChatMessage(message, imageUrl = null) {
     const timestamp = getTimestamp();
 
@@ -554,9 +407,6 @@ async function handleChatMessage(message, imageUrl = null) {
     // Create AI message placeholder
     const aiDiv = document.createElement('div');
     aiDiv.classList.add('message', 'ai-message');
-
-    // Add messages to group
-    messageGroup.appendChild(userDiv);
     messageGroup.appendChild(aiDiv);
 
     // Insert at the beginning of messages container
@@ -566,13 +416,6 @@ async function handleChatMessage(message, imageUrl = null) {
         startNewChat();
     }
 
-    currentChat.messages.push({
-        role: 'user',
-        content: message,
-        timestamp: timestamp
-    });
-
-    try {
         showLoading();
         let response;
 
@@ -597,7 +440,7 @@ async function handleChatMessage(message, imageUrl = null) {
                 response = await aiFiles.defaultChat(message, currentModel, currentSystemPrompt);
         }
 
-        let aiResponse = await processAIResponse(response, aiDiv);
+        let aiResponse = await processAIResponse(response, aiDiv); // Use processAIResponse!
         aiResponse = formatModelResponse(aiResponse, currentModel);
         updateAIDivContent(aiDiv, getTimestamp(), aiResponse);
 
@@ -607,12 +450,6 @@ async function handleChatMessage(message, imageUrl = null) {
             timestamp: getTimestamp()
         });
 
-        saveSettingsAndHistory(); // Save after processing
-
-    } catch (error) {
-        console.error("Full error object:", error);
-        const errorTimestamp = getTimestamp();
-        const errorMessage = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
         aiDiv.innerHTML = `
             <span class="message-timestamp">${errorTimestamp}</span>
             <span class="message-prefix">AI: </span>
