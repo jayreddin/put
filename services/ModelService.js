@@ -38,15 +38,18 @@ export class ModelService {
         };
     }
 
+    // Get model configuration
     getModelConfig(model) {
         return modelConfig.models[model] || null;
     }
 
+    // Check if the model supports system prompts
     supportsSystemPrompt(model) {
         const config = this.getModelConfig(model);
         return config?.supportsSystemPrompt || false;
     }
 
+    // Get model options including defaults and specific configurations
     getModelOptions(model) {
         const config = this.getModelConfig(model);
         return {
@@ -56,6 +59,7 @@ export class ModelService {
         };
     }
 
+    // Handle the model request
     async handleModelRequest(message, model, systemPrompt = null) {
         const handler = this.modelHandlers[model];
         if (!handler) {

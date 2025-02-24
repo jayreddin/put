@@ -79,7 +79,7 @@ body.dark-mode .icon-button { /* Dark mode specific */
     cursor: pointer;
     width: 200px;
 }
-body.dark-mode #model-select-header{ /* Dark mode specific */
+body.dark-mode #model-select-header { /* Dark mode specific */
     background-color: #1e1e1e;
     color: #f0f0f0;
 }
@@ -153,15 +153,11 @@ body.dark-mode #model-select-header{ /* Dark mode specific */
     max-width: 80%;
     word-wrap: break-word;
     background-color: #3a3a3a;
-    padding: 12px 15px;
-    border-radius: 15px;
     display: inline-block;
-    max-width: 70%;
-    word-wrap: break-word;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
-body.dark-mode .message-content{  /* Dark mode specific */
+body.dark-mode .message-content {  /* Dark mode specific */
     background-color: #333;
 }
 
@@ -333,7 +329,7 @@ body.dark-mode .thought-process {
     gap: 12px;
     margin-bottom: 16px;
 }
-body.dark-mode .input-area{ /* Dark mode specific */
+body.dark-mode .input-area { /* Dark mode specific */
     background-color: #1e1e1e;
 }
 
@@ -363,9 +359,6 @@ body.dark-mode .input-area{ /* Dark mode specific */
     -ms-overflow-style: none;  /* Hide scrollbar IE and Edge */
     overflow: -moz-scrollbars-none; /* Firefox */
     overflow: hidden;  /* Hide scrollbar for other browsers */
-    &::-webkit-scrollbar {
-        display: none; /* Safari and Chrome */
-    }
 }
 
 #chat-input::-webkit-scrollbar {
@@ -376,7 +369,7 @@ body.dark-mode .input-area{ /* Dark mode specific */
     background-color: #404040;
     border-color: rgba(255, 255, 255, 0.2);
 }
-body.dark-mode #chat-input{ /* Dark mode specific */
+body.dark-mode #chat-input { /* Dark mode specific */
     background-color: #333;
     color: #f0f0f0;
 }
@@ -425,8 +418,6 @@ body.dark-mode #chat-input{ /* Dark mode specific */
     background-color: #404040;
     transform: scale(1.05);
 }
-
-/* Remove old options-bar styles */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -490,7 +481,7 @@ body.dark-mode #chat-input{ /* Dark mode specific */
     background: #4a4a4a;
 }
 
-/* styles.css -  Keeping only unique styles and combining where possible */
+/* styles.css - Keeping only unique styles and combining where possible */
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -527,6 +518,7 @@ body.dark-mode #chat-input{ /* Dark mode specific */
     padding: 10px;
     margin: 10px 0;
 }
+
 .loading-indicator {
     position: fixed;
     top: 50%;

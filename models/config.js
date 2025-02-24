@@ -1,7 +1,7 @@
 export const modelConfig = {
     defaultSettings: {
         stream: true,
-        format: 'markdown'
+        format: 'markdown' // Default response format
     },
     
     // Define model-specific configurations
@@ -9,9 +9,9 @@ export const modelConfig = {
         "o1": {
             supportsSystemPrompt: true,
             defaultOptions: {
-                format: 'markdown',
+                format: 'markdown', // Specific format for this model
                 stream: true,
-                temperature: 0.7
+                temperature: 0.7 // Default temperature setting
             }
         },
         "o3-mini": {
@@ -27,7 +27,7 @@ export const modelConfig = {
             supportsSystemPrompt: true,
             defaultOptions: {
                 temperature: 0.7,
-                max_tokens: 2000
+                max_tokens: 2000 // Maximum tokens for response
             }
         },
         "deepseek-chat": {
@@ -37,7 +37,7 @@ export const modelConfig = {
             supportsSystemPrompt: true,
             defaultOptions: {
                 temperature: 0.7,
-                format: 'markdown'
+                format: 'markdown' // Format for Claude model
             }
         },
         "gemini-2.0-flash": {
